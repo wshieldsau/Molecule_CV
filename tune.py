@@ -217,14 +217,18 @@ for name, builder in MODELS.items():
     hist_df.to_csv(os.path.join(OUTPUT_DIR, f'history_{name}_tuned.csv'))
     print(f"{name}: MSE={metrics['test_mse']:.3f} MAE={metrics['test_mae']:.3f} AUC={metrics['auc_roc']}")
 
-pred_df.to_csv(os.path.join(OUTPUT_DIR, 'predictions_tuned.csv'), index=False)
+    # Incremental save: after each model, rewrite aggregates so a crash
+    # mid-run doesn't lose completed models.
+    pred_df.to_csv(os.path.join(OUTPUT_DIR, 'predictions_tuned.csv'), index=False)
+    pd.DataFrame(all_metrics).to_csv(
+        os.path.join(OUTPUT_DIR, 'model_metrics_tuned.csv'), index=False)
+    with open(os.path.join(OUTPUT_DIR, 'best_hparams.json'), 'w') as f:
+        json.dump(best_hps, f, indent=2)
+    print(f"  [saved aggregates through {name}]")
+
 metrics_df = pd.DataFrame(all_metrics)
-metrics_df.to_csv(os.path.join(OUTPUT_DIR, 'model_metrics_tuned.csv'), index=False)
 print("\nFinal metrics:")
 print(metrics_df.to_string(index=False))
-
-with open(os.path.join(OUTPUT_DIR, 'best_hparams.json'), 'w') as f:
-    json.dump(best_hps, f, indent=2)
 
 with open(os.path.join(OUTPUT_DIR, 'run_config.json'), 'w') as f:
     json.dump({
