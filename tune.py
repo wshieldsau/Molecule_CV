@@ -21,6 +21,7 @@ builds on the revived baselines, not the collapsed originals.
 
 import os
 import json
+import argparse
 import subprocess
 import numpy as np
 import pandas as pd
@@ -29,6 +30,14 @@ from tensorflow import keras
 import keras_tuner as kt
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import roc_auc_score
+
+_parser = argparse.ArgumentParser()
+_parser.add_argument('--model', choices=['toxic_colors', 'custom_cnn', 'admet'],
+                     default=None,
+                     help='Run only this model (default: all three). '
+                          'Existing aggregates in output dir are preserved; '
+                          'the named model overwrites its own entries.')
+_args = _parser.parse_args()
 
 SEED = 42
 tf.random.set_seed(SEED)
@@ -152,7 +161,8 @@ def build_toxic_colors_hp(hp):
 
 def build_custom_cnn_hp(hp):
     keras.backend.clear_session()
-    base = hp.Choice('base_filters', [16, 32, 64])
+    # base_filters capped at 32 (64 + extra_block caused ~120k flatten fan-in)
+    base = hp.Choice('base_filters', [16, 32])
     inp = keras.layers.Input(shape=INPUT_SHAPE)
     x = keras.layers.Conv2D(base, (3, 3), kernel_initializer='he_normal')(inp)
     x = keras.layers.LeakyReLU(0.1)(x)
@@ -168,7 +178,13 @@ def build_custom_cnn_hp(hp):
                                 kernel_initializer='he_normal')(x)
         x = keras.layers.LeakyReLU(0.1)(x)
     x = keras.layers.Flatten()(x)
-    out = _head(hp, x)
+    # cap dense_units for custom_cnn (Flatten vector is ~20k-60k long)
+    drop = hp.Float('dropout', 0.2, 0.6, step=0.1)
+    dense_units = hp.Choice('cnn_dense_units', [64, 128, 256])
+    y = keras.layers.Dense(dense_units, kernel_initializer='he_normal')(x)
+    y = keras.layers.LeakyReLU(0.1)(y)
+    y = keras.layers.Dropout(drop)(y)
+    out = keras.layers.Dense(1)(y)
     return _compile(keras.Model(inp, out), hp)
 
 
@@ -177,6 +193,8 @@ MODELS = {
     'custom_cnn': build_custom_cnn_hp,
     'admet': build_admet_hp,
 }
+if _args.model:
+    MODELS = {_args.model: MODELS[_args.model]}
 
 
 class PerTrialLogger(keras.callbacks.Callback):
@@ -239,9 +257,34 @@ with open(os.path.join(OUTPUT_DIR, 'run_config.json'), 'w') as f:
         'keras_tuner_version': kt.__version__,
     }, f, indent=2)
 
-all_metrics = []
-pred_df = pd.DataFrame({'CID': cid_test, 'pIC50_actual': y_test, 'Class': c_test})
-best_hps = {}
+# Resume semantics: if aggregate files already exist, load them and
+# drop entries for models about to be rerun. This lets us invoke the
+# script per-model (--model X) without clobbering earlier results.
+_metrics_path = os.path.join(OUTPUT_DIR, 'model_metrics_tuned.csv')
+_preds_path = os.path.join(OUTPUT_DIR, 'predictions_tuned.csv')
+_hparams_path = os.path.join(OUTPUT_DIR, 'best_hparams.json')
+_to_run = set(MODELS.keys())
+
+if os.path.exists(_metrics_path):
+    all_metrics = [r for r in pd.read_csv(_metrics_path).to_dict('records')
+                   if r['model'] not in _to_run]
+else:
+    all_metrics = []
+
+if os.path.exists(_preds_path):
+    pred_df = pd.read_csv(_preds_path)
+    for m in _to_run:
+        pred_df = pred_df.drop(columns=[f'pred_{m}'], errors='ignore')
+else:
+    pred_df = pd.DataFrame({'CID': cid_test, 'pIC50_actual': y_test, 'Class': c_test})
+
+if os.path.exists(_hparams_path):
+    with open(_hparams_path) as f:
+        best_hps = json.load(f)
+    for m in _to_run:
+        best_hps.pop(m, None)
+else:
+    best_hps = {}
 
 for name, builder in MODELS.items():
     print(f"\n{'='*60}\nTuning: {name}\n{'='*60}")
