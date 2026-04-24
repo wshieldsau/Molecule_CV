@@ -1,0 +1,2 @@
+model,test_mse,test_mae,auc_roc,pred_min,pred_max,unique_preds,best_hparams
+admet,1.563580418454938,0.9726380470255938,0.6646,4.836283206939697,8.324030876159668,298,"{""filters"": 32, ""kernel_size"": 27, ""dropout"": 0.2, ""dense_units"": 128, ""lr"": 0.00010277342442932574}"

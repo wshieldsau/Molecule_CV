@@ -1,0 +1,9 @@
+{
+  "admet": {
+    "filters": 32,
+    "kernel_size": 27,
+    "dropout": 0.2,
+    "dense_units": 128,
+    "lr": 0.00010277342442932574
+  }
+}
