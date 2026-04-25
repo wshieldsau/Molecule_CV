@@ -1,0 +1,21 @@
+{
+  "version": "v3",
+  "git_sha": "fc9fed3925fd4cef7f4e5ad3a30400c52ef78f77",
+  "img_size": [
+    180,
+    180
+  ],
+  "max_trials": 10,
+  "tune_epochs": 15,
+  "final_epochs": 100,
+  "es_patience": 8,
+  "batch_size": 64,
+  "seed": 42,
+  "y_mean": 6.533644998512396,
+  "y_std": 1.3415565182129892,
+  "model_order": [
+    "admet"
+  ],
+  "tf_version": "2.20.0",
+  "keras_tuner_version": "1.4.8"
+}

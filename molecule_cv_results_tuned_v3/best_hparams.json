@@ -1,0 +1,25 @@
+{
+  "toxic_colors": {
+    "filters": 8,
+    "kernel_size": 16,
+    "use_bn": false,
+    "conv_dropout": 0.4,
+    "dropout": 0.4,
+    "tc_dense_units": 256,
+    "lr": 1.5159319577885927e-05
+  },
+  "custom_cnn": {
+    "base_filters": 16,
+    "extra_block": false,
+    "dropout": 0.2,
+    "cnn_dense_units": 64,
+    "lr": 1.4690651027379392e-05
+  },
+  "admet": {
+    "filters": 8,
+    "kernel_size": 15,
+    "dropout": 0.5,
+    "dense_units": 128,
+    "lr": 5.5095138886455844e-05
+  }
+}
