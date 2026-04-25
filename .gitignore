@@ -4,7 +4,6 @@ data/
 molecule_images_aug/
 __pycache__/
 *.log
-keras_tuner_runs/
-keras_tuner_runs_v2/
+keras_tuner_runs*/
 .claude/
 molecule_cv_results.zip

@@ -1,4 +1,12 @@
-"""Hyperparameter tuning for all three BACE CNN architectures (v2).
+"""Hyperparameter tuning for all three BACE CNN architectures (v3).
+
+v3 changes vs v2:
+  - Per-epoch test_loss and test_mae recorded in both search and refit
+    histories, enabling post-hoc val/test-gap (overfitting-to-val) analysis.
+    Test metrics are diagnostic only: tuner objective stays val_mae and
+    EarlyStopping still monitors val_loss, so test cannot influence selection.
+  - Outputs move to molecule_cv_results_tuned_v3/ and keras_tuner_runs_v3/
+    so v2 artifacts remain untouched for comparison.
 
 v2 changes vs v1:
   - clear_session() at start of each builder (fixes OOM from TF graph accumulation across trials)
@@ -14,9 +22,8 @@ dropout, and a few architecture knobs per model. For each model:
   2. Refit the best config at `FINAL_EPOCHS` on z-scored pIC50
   3. Save test metrics, predictions, best hparams, and training history
 
-Writes to molecule_cv_results_tuned_v2/. Architectures mirror the
-"fixed" variants (he_normal + LeakyReLU + BatchNorm) so tuning
-builds on the revived baselines, not the collapsed originals.
+Architectures mirror the "fixed" variants (he_normal + LeakyReLU + BatchNorm)
+so tuning builds on the revived baselines, not the collapsed originals.
 """
 
 import os
@@ -46,8 +53,8 @@ np.random.seed(SEED)
 HERE = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = HERE
 IMG_DIR = os.path.join(DATA_DIR, 'molecule_images')
-OUTPUT_DIR = os.path.join(DATA_DIR, 'molecule_cv_results_tuned_v2')
-TUNER_DIR = os.path.join(DATA_DIR, 'keras_tuner_runs_v2')
+OUTPUT_DIR = os.path.join(DATA_DIR, 'molecule_cv_results_tuned_v3')
+TUNER_DIR = os.path.join(DATA_DIR, 'keras_tuner_runs_v3')
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 IMG_SIZE = (180, 180)
@@ -95,6 +102,7 @@ Y_MEAN = float(y_train.mean())
 Y_STD = float(y_train.std())
 y_train_z = (y_train - Y_MEAN) / Y_STD
 y_val_z = (y_val - Y_MEAN) / Y_STD
+y_test_z = (y_test - Y_MEAN) / Y_STD
 
 INPUT_SHAPE = IMG_SIZE + (3,)
 
@@ -197,6 +205,29 @@ if _args.model:
     MODELS = {_args.model: MODELS[_args.model]}
 
 
+class TestTracker(keras.callbacks.Callback):
+    """Evaluate on the held-out test set each epoch; inject test_loss/test_mae
+    into the epoch's logs dict so downstream callbacks and History record them.
+
+    Diagnostic only — tuner objective and EarlyStopping both monitor val_*,
+    so test metrics cannot influence hparam selection or early stopping.
+    Must be placed before PerTrialLogger in the callbacks list.
+    """
+
+    def __init__(self, X_test, y_test_z):
+        super().__init__()
+        self.X_test = X_test
+        self.y_test_z = y_test_z
+
+    def on_epoch_end(self, epoch, logs=None):
+        if logs is None:
+            return
+        test_loss, test_mae = self.model.evaluate(
+            self.X_test, self.y_test_z, verbose=0)
+        logs['test_loss'] = test_loss
+        logs['test_mae'] = test_mae
+
+
 class PerTrialLogger(keras.callbacks.Callback):
     """Write per-trial-per-epoch metrics to a single CSV during tuner.search."""
 
@@ -205,7 +236,7 @@ class PerTrialLogger(keras.callbacks.Callback):
         self.path = os.path.join(output_dir, f'tuning_history_{model_name}.csv')
         self.trial = -1
         with open(self.path, 'w') as f:
-            f.write('trial,epoch,loss,mae,val_loss,val_mae\n')
+            f.write('trial,epoch,loss,mae,val_loss,val_mae,test_loss,test_mae\n')
 
     def on_train_begin(self, logs=None):
         self.trial += 1
@@ -215,7 +246,8 @@ class PerTrialLogger(keras.callbacks.Callback):
         with open(self.path, 'a') as f:
             f.write(f"{self.trial},{epoch},"
                     f"{logs.get('loss', ''):.6f},{logs.get('mae', ''):.6f},"
-                    f"{logs.get('val_loss', ''):.6f},{logs.get('val_mae', ''):.6f}\n")
+                    f"{logs.get('val_loss', ''):.6f},{logs.get('val_mae', ''):.6f},"
+                    f"{logs.get('test_loss', ''):.6f},{logs.get('test_mae', ''):.6f}\n")
 
 
 def summarize(name, model):
@@ -241,7 +273,7 @@ except Exception:
 # Write run_config up front so metadata survives even if the run crashes.
 with open(os.path.join(OUTPUT_DIR, 'run_config.json'), 'w') as f:
     json.dump({
-        'version': 'v2',
+        'version': 'v3',
         'git_sha': GIT_SHA,
         'img_size': list(IMG_SIZE),
         'max_trials': MAX_TRIALS,
@@ -304,6 +336,7 @@ for name, builder in MODELS.items():
         batch_size=BATCH_SIZE,
         verbose=2,
         callbacks=[
+            TestTracker(X_test, y_test_z),
             keras.callbacks.EarlyStopping(
                 monitor='val_loss', patience=ES_PATIENCE,
                 restore_best_weights=True, verbose=0),
@@ -323,6 +356,7 @@ for name, builder in MODELS.items():
         batch_size=BATCH_SIZE,
         verbose=2,
         callbacks=[
+            TestTracker(X_test, y_test_z),
             keras.callbacks.EarlyStopping(
                 monitor='val_loss', patience=ES_PATIENCE,
                 restore_best_weights=True, verbose=1),
