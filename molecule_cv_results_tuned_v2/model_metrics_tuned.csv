@@ -1,0 +1,4 @@
+model,test_mse,test_mae,auc_roc,pred_min,pred_max,unique_preds,best_hparams
+toxic_colors,1.277818034571293,0.9239666591722344,0.7167,4.850939750671387,7.767546653747559,298,"{""filters"": 8, ""kernel_size"": 16, ""use_bn"": false, ""conv_dropout"": 0.4, ""dropout"": 0.4, ""tc_dense_units"": 256, ""lr"": 1.5159319577885927e-05}"
+custom_cnn,1.3656642660370817,0.9497323073715964,0.7098,4.5418243408203125,8.443467140197754,296,"{""base_filters"": 16, ""extra_block"": true, ""dropout"": 0.2, ""cnn_dense_units"": 128, ""lr"": 3.069273045576998e-05}"
+admet,1.4567588643635978,0.9897162402355737,0.6631,3.2787110805511475,8.48689079284668,303,"{""filters"": 32, ""kernel_size"": 21, ""dropout"": 0.30000000000000004, ""dense_units"": 128, ""lr"": 1.385536126653817e-05}"

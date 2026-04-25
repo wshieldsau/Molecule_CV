@@ -33,8 +33,8 @@ ID_COL = "CID"
 # --- Augmentation grid ---
 A_VALUES = [False, True]          # annotations on/off
 B_VALUES = [0, 90, 180, 270]     # rotation degrees
-C_VALUES = [1.0, 3.0]            # bond line width
-D_VALUES = ["none", "comic", "bw", "blackbg"]  # style
+C_VALUES = [1.0]                 # bond line width (default)
+D_VALUES = ["none"]  # style (single default)
 
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
@@ -84,12 +84,8 @@ for i, mol_info in enumerate(molecules, start=1):
         opts.bondLineWidth = bw
 
         # d: style
-        if style == "comic":
-            opts.comicMode = True
-        elif style == "bw":
+        if style == "bw":
             opts.useBWAtomPalette()
-        elif style == "blackbg":
-            opts.setBackgroundColour((0, 0, 0, 1))
 
         # kekulize variant (part of a)
         if annot:
